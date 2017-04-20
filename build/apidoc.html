@@ -49,9 +49,9 @@
 <h1>api documentation for
     <a
 
-    >exchanger (v0.0.1)</a>
+    >exchanger (v0.1.1)</a>
 </h1>
-<h4>{{env.npm_package_description}}</h4>
+<h4>Query Exchange Web Services</h4>
 <div class="apidocSectionDiv"><a
     href="#apidoc.tableOfContents"
     id="apidoc.tableOfContents"
@@ -59,12 +59,385 @@
 
     <li class="apidocModuleLi"><a href="#apidoc.module.exchanger">module exchanger</a><ol>
 
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.exchanger.getEmail">
+            function <span class="apidocSignatureSpan">exchanger.</span>getEmail
+            <span class="apidocSignatureSpan">(itemId, callback)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.exchanger.getEmails">
+            function <span class="apidocSignatureSpan">exchanger.</span>getEmails
+            <span class="apidocSignatureSpan">(folderName, limit, callback)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.exchanger.getFolders">
+            function <span class="apidocSignatureSpan">exchanger.</span>getFolders
+            <span class="apidocSignatureSpan">(id, callback)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.exchanger.initialize">
+            function <span class="apidocSignatureSpan">exchanger.</span>initialize
+            <span class="apidocSignatureSpan">(settings, callback)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <span class="apidocSignatureSpan">object <span class="apidocSignatureSpan">exchanger.</span>client</span>
+
+        </li>
+
     </ol></li>
 
 </ol></div>
 
 <div class="apidocSectionDiv">
 <h1><a href="#apidoc.module.exchanger" id="apidoc.module.exchanger">module exchanger</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.exchanger.getEmail" id="apidoc.element.exchanger.getEmail">
+        function <span class="apidocSignatureSpan">exchanger.</span>getEmail
+        <span class="apidocSignatureSpan">(itemId, callback)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">getEmail = function (itemId, callback) {
+  if (!exports.client) {
+    return callback(new Error(&#x27;Call initialize()&#x27;))
+  }
+  if ((!itemId[&#x27;id&#x27;] || !itemId[&#x27;changeKey&#x27;]) &#x26;&#x26; itemId.indexOf(&#x27;|&#x27;) &#x3e; 0) {
+    var s = itemId.split(&#x27;|&#x27;);
+
+    itemId = {
+      id: itemId.split(&#x27;|&#x27;)[0],
+      changeKey: itemId.split(&#x27;|&#x27;)[1]
+    };
+  }
+
+  if (!itemId.id || !itemId.changeKey) {
+    return callback(new Error(&#x27;Id is not correct.&#x27;));
+  }
+
+  var soapRequest =
+    &#x27;&#x3c;tns:GetItem xmlns=&#x22;http://schemas.microsoft.com/exchange/services/2006/messages&#x22; xmlns:t=&#x22;http://schemas.microsoft.com/exchange
+/services/2006/types&#x22;&#x3e;&#x27; +
+      &#x27;&#x3c;tns:ItemShape&#x3e;&#x27; +
+        &#x27;&#x3c;t:BaseShape&#x3e;Default&#x3c;/t:BaseShape&#x3e;&#x27; +
+        &#x27;&#x3c;t:IncludeMimeContent&#x3e;true&#x3c;/t:IncludeMimeContent&#x3e;&#x27; +
+      &#x27;&#x3c;/tns:ItemShape&#x3e;&#x27; +
+      &#x27;&#x3c;tns:ItemIds&#x3e;&#x27; +
+        &#x27;&#x3c;t:ItemId Id=&#x22;&#x27; + itemId.id + &#x27;&#x22; ChangeKey=&#x22;&#x27; + itemId.changeKey + &#x27;&#x22; /&#x3e;&#x27; +
+      &#x27;&#x3c;/tns:ItemIds&#x3e;&#x27; +
+    &#x27;&#x3c;/tns:GetItem&#x3e;&#x27;;
+
+  exports.client.GetItem(soapRequest, function(err, result, body) {
+    if (err) {
+      return callback(err);
+    }
+
+    var parser = new xml2js.Parser();
+
+    parser.parseString(body, function(err, result) {
+      var responseCode = result[&#x27;s:Body&#x27;][&#x27;m:GetItemResponse&#x27;][&#x27;m:ResponseMessages&#x27;][&#x27;m:GetItemResponseMessage&#x27;][&#x27;m:ResponseCode
+&#x27;];
+
+      if (responseCode !== &#x27;NoError&#x27;) {
+        return callback(new Error(responseCode));
+      }
+
+      var item = result[&#x27;s:Body&#x27;][&#x27;m:GetItemResponse&#x27;][&#x27;m:ResponseMessages&#x27;][&#x27;m:GetItemResponseMessage&#x27;][&#x27;m:Items&#x27;][&#x27;t:Message&#x27;];
+
+      var itemId = {
+        id: item[&#x27;t:ItemId&#x27;][&#x27;@&#x27;].Id,
+        changeKey: item[&#x27;t:ItemId&#x27;][&#x27;@&#x27;].ChangeKey
+      };
+
+      function handleMailbox(mailbox) {
+        var mailboxes = [];
+
+        if (!mailbox || !mailbox[&#x27;t:Mailbox&#x27;]) {
+          return mailboxes;
+        }
+        mailbox = mailbox[&#x27;t:Mailbox&#x27;];
+
+        function getMailboxObj(mailboxItem) {
+          return {
+            name: mailboxItem[&#x27;t:Name&#x27;],
+            emailAddress: mailboxItem[&#x27;t:EmailAddress&#x27;]
+          };
+        }
+
+        if (mailbox instanceof Array) {
+          mailbox.forEach(function(m, idx) {
+            mailboxes.push(getMailboxObj(m));
+          })
+        } else {
+          mailboxes.push(getMailboxObj(mailbox));
+        }
+
+        return mailboxes;
+      }
+
+      var toRecipients = handleMailbox(item[&#x27;t:ToRecipients&#x27;]);
+      var ccRecipients = handleMailbox(item[&#x27;t:CcRecipients&#x27;]);
+      var from = handleMailbox(item[&#x27;t:From&#x27;]);
+
+      var email = {
+        id: itemId.id + &#x27;|&#x27; + itemId.changeKey,
+        subject: item[&#x27;t:Subject&#x27;],
+        bodyType: item[&#x27;t:Body&#x27;][&#x27;@&#x27;][&#x27;t:BodyType&#x27;],
+        body: item[&#x27;t:Body&#x27;][&#x27;#&#x27;],
+        size: item[&#x27;t:Size&#x27;],
+        dateTimeSent: item[&#x27;t:DateTimeSent&#x27;],
+        dateTimeCreated: item[&#x27;t:DateTimeCreated&#x27;],
+        toRecipients: toRecipients,
+        ccRecipients: ccRecipients,
+        from: from,
+        isRead: (item[&#x27;t:IsRead&#x27;] == &#x27;true&#x27;) ? true : false,
+        meta: {
+          itemId: itemId
+        }
+      };
+
+      callback(null, email);
+    });
+  });
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.exchanger.getEmails" id="apidoc.element.exchanger.getEmails">
+        function <span class="apidocSignatureSpan">exchanger.</span>getEmails
+        <span class="apidocSignatureSpan">(folderName, limit, callback)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">getEmails = function (folderName, limit, callback) {
+  if (typeof(folderName) === &#x22;function&#x22;) {
+    callback = folderName;
+    folderName = &#x27;inbox&#x27;;
+    limit = 10;
+  }
+  if (typeof(limit) === &#x22;function&#x22;) {
+    callback = limit;
+    limit = 10;
+  }
+  if (!exports.client) {
+    return callback(new Error(&#x27;Call initialize()&#x27;));
+  }
+
+  var soapRequest =
+    &#x27;&#x3c;tns:FindItem Traversal=&#x22;Shallow&#x22; xmlns:tns=&#x22;http://schemas.microsoft.com/exchange/services/2006/messages&#x22;&#x3e;&#x27; +
+      &#x27;&#x3c;tns:ItemShape&#x3e;&#x27; +
+        &#x27;&#x3c;t:BaseShape&#x3e;IdOnly&#x3c;/t:BaseShape&#x3e;&#x27; +
+        &#x27;&#x3c;t:AdditionalProperties&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:ItemId&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          // &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:ConversationId&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          // &#x27;&#x3c;t:FieldURI FieldURI=&#x22;message:ReplyTo&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          // &#x27;&#x3c;t:FieldURI FieldURI=&#x22;message:ToRecipients&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          // &#x27;&#x3c;t:FieldURI FieldURI=&#x22;message:CcRecipients&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          // &#x27;&#x3c;t:FieldURI FieldURI=&#x22;message:BccRecipients&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:DateTimeCreated&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:DateTimeSent&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:HasAttachments&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:Size&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;message:From&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;message:IsRead&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:Importance&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:Subject&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+          &#x27;&#x3c;t:FieldURI FieldURI=&#x22;item:DateTimeReceived&#x22;&#x3e;&#x3c;/t:FieldURI&#x3e;&#x27; +
+        &#x27;&#x3c;/t:AdditionalProperties&#x3e;&#x27; +
+      &#x27;&#x3c;/tns:ItemShape&#x3e;&#x27; +
+      &#x27;&#x3c;tns:IndexedPageItemView BasePoint=&#x22;Beginning&#x22; Offset=&#x22;0&#x22; MaxEntriesReturned=&#x22;10&#x22;&#x3e;&#x3c;/tns:IndexedPageItemView&#x3e;&#x27; +
+      &#x27;&#x3c;tns:ParentFolderIds&#x3e;&#x27; +
+        &#x27;&#x3c;t:DistinguishedFolderId Id=&#x22;inbox&#x22;&#x3e;&#x3c;/t:DistinguishedFolderId&#x3e;&#x27; +
+      &#x27;&#x3c;/tns:ParentFolderIds&#x3e;&#x27; +
+    &#x27;&#x3c;/tns:FindItem&#x3e;&#x27;;
+
+  exports.client.FindItem(soapRequest, function(err, result, body) {
+    if (err) {
+      return callback(err);
+    }
+
+    var parser = new xml2js.Parser();
+
+    parser.parseString(body, function(err, result) {
+      var responseCode = result[&#x27;s:Body&#x27;][&#x27;m:FindItemResponse&#x27;][&#x27;m:ResponseMessages&#x27;][&#x27;m:FindItemResponseMessage&#x27;][&#x27;m:ResponseCode
+&#x27;];
+
+      if (responseCode !== &#x27;NoError&#x27;) {
+        return callback(new Error(responseCode));
+      }
+
+      var rootFolder = result[&#x27;s:Body&#x27;][&#x27;m:FindItemResponse&#x27;][&#x27;m:ResponseMessages&#x27;][&#x27;m:FindItemResponseMessage&#x27;][&#x27;m:RootFolder&#x27;];
+
+      var emails = [];
+      rootFolder[&#x27;t:Items&#x27;][&#x27;t:Message&#x27;].forEach(function(item, idx) {
+        var md5hasher = crypto.createHash(&#x27;md5&#x27;);
+        md5hasher.update(item[&#x27;t:Subject&#x27;] + item[&#x27;t:DateTimeSent&#x27;]);
+        var hash = md5hasher.digest(&#x27;hex&#x27;);
+
+        var itemId = {
+          id: item[&#x27;t:ItemId&#x27;][&#x27;@&#x27;].Id,
+          changeKey: item[&#x27;t:ItemId&#x27;][&#x27;@&#x27;].ChangeKey
+        };
+
+        var dateTimeReceived = item[&#x27;t:DateTimeReceived&#x27;];
+
+        emails.push({
+          id: itemId.id + &#x27;|&#x27; + itemId.changeKey,
+          hash: hash,
+          subject: item[&#x27;t:Subject&#x27;],
+          dateTimeReceived: moment(dateTimeReceived).format(&#x22;MM/DD/YYYY, h:mm:ss A&#x22;),
+          size: item[&#x27;t:Size&#x27;],
+          importance: item[&#x27;t:Importance&#x27;],
+          hasAttachments: (item[&#x27;t:HasAttachments&#x27;] === &#x27;true&#x27;),
+          from: item[&#x27;t:From&#x27;][&#x27;t:Mailbox&#x27;][&#x27;t:Name&#x27;],
+          isRead: (item[&#x27;t:IsRead&#x27;] === &#x27;true&#x27;),
+          meta: {
+            itemId: itemId
+          }
+        });
+      });
+
+      callback(null, emails);
+    });
+  });
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+``` javascript
+var exchanger = require(&#x27;exchanger&#x27;);
+retriever.initialize({ url: &#x27;webmail.example.com&#x27;, username: &#x27;username&#x27;, password: &#x27;password&#x27; }, function
+(err) {
+  console.log(&#x27;Initialized!&#x27;);
+});
+```
+
+###exchanger.<span class="apidocCodeKeywordSpan">getEmails</span>(folderName, limit, callback)
+
+``` javascript
+var exchanger = require(&#x27;exchanger&#x27;);
+retriever.initialize({ url: &#x27;webmail.example.com&#x27;, username: &#x27;username&#x27;, password: &#x27;password&#x27; }, function
+(err) {
+  exchanger.getEmails(&#x27;inbox&#x27;, 50, function(err, emails) {
+    console.log(emails);
+  });
+...</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.exchanger.getFolders" id="apidoc.element.exchanger.getFolders">
+        function <span class="apidocSignatureSpan">exchanger.</span>getFolders
+        <span class="apidocSignatureSpan">(id, callback)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">getFolders = function (id, callback) {
+  if (typeof(id) == &#x27;function&#x27;) {
+    callback = id;
+    id = &#x27;inbox&#x27;;
+  }
+
+  var soapRequest =
+    &#x27;&#x3c;tns:FindFolder xmlns:tns=&#x22;http://schemas.microsoft.com/exchange/services/2006/messages&#x22;&#x3e;&#x27; +
+        &#x27;&#x3c;tns:FolderShape&#x3e;&#x27; +
+          &#x27;&#x3c;t:BaseShape&#x3e;Default&#x3c;/t:BaseShape&#x3e;&#x27; +
+        &#x27;&#x3c;/tns:FolderShape&#x3e;&#x27; +
+        &#x27;&#x3c;tns:ParentFolderIds&#x3e;&#x27; +
+          &#x27;&#x3c;t:DistinguishedFolderId Id=&#x22;inbox&#x22;&#x3e;&#x3c;/t:DistinguishedFolderId&#x3e;&#x27; +
+        &#x27;&#x3c;/tns:ParentFolderIds&#x3e;&#x27; +
+      &#x27;&#x3c;/tns:FindFolder&#x3e;&#x27;;
+
+  exports.client.FindFolder(soapRequest, function(err, result) {
+    if (err) {
+      callback(err)
+    }
+
+    if (result.ResponseMessages.FindFolderResponseMessage.ResponseCode == &#x27;NoError&#x27;) {
+      var rootFolder = result.ResponseMessages.FindFolderResponseMessage.RootFolder;
+
+      rootFolder.Folders.Folder.forEach(function(folder) {
+        // console.log(folder);
+      });
+
+      callback(null, {});
+    }
+  });
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.exchanger.initialize" id="apidoc.element.exchanger.initialize">
+        function <span class="apidocSignatureSpan">exchanger.</span>initialize
+        <span class="apidocSignatureSpan">(settings, callback)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">initialize = function (settings, callback) {
+  var soap = require(&#x27;soap&#x27;);
+  // TODO: Handle different locations of where the asmx lives.
+  var endpoint = &#x27;https://&#x27; + path.join(settings.url, &#x27;EWS/Exchange.asmx&#x27;);
+  var url = path.join(__dirname, &#x27;Services.wsdl&#x27;);
+
+  soap.createClient(url, {}, function(err, client) {
+    if (err) {
+      return callback(err);
+    }
+    if (!client) {
+      return callback(new Error(&#x27;Could not create client&#x27;));
+    }
+
+    exports.client = client;
+    exports.client.setSecurity(new soap.BasicAuthSecurity(settings.username, settings.password));
+
+    return callback(null);
+  }, endpoint);
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+
+```
+npm install exchanger
+```
+
+##Module
+
+###exchanger.<span class="apidocCodeKeywordSpan">initialize</span>(settings, callback)
+
+``` javascript
+  var exchanger = require(&#x27;exchanger&#x27;);
+  retriever.initialize({ url: &#x27;webmail.example.com&#x27;, username: &#x27;username&#x27;, password: &#x27;password&#x27; },
+function(err) {
+    console.log(&#x27;Initialized!&#x27;);
+  });
+```
+...</pre></li>
+    </ul>
+
+
+
 
 </div>
 

@@ -532,7 +532,7 @@ local.templateApidocHtml = '\
                 options.modulePathList || local.module.paths
             );
             local.objectSetDefault(options, {
-                env: {},
+                env: { npm_package_description: '' },
                 packageJson: JSON.parse(readExample('package.json')),
                 require: require
             });
